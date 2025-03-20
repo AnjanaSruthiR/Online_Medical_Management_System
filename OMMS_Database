@@ -1,0 +1,707 @@
+---------------------------------------------------------------
+-- Create and Use the Database
+---------------------------------------------------------------
+IF DB_ID('OnlineMedicalManagementSystem') IS NULL
+    CREATE DATABASE OnlineMedicalManagementSystem;
+GO
+
+USE OnlineMedicalManagementSystem;
+GO
+
+---------------------------------------------------------------
+-- Create Tables
+---------------------------------------------------------------
+
+-- Roles
+IF OBJECT_ID('roles', 'U') IS NOT NULL DROP TABLE roles;
+CREATE TABLE roles (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    role_name VARCHAR(50) NOT NULL UNIQUE
+);
+
+-- Persons
+IF OBJECT_ID('persons', 'U') IS NOT NULL DROP TABLE persons;
+CREATE TABLE persons (
+    id INT PRIMARY KEY IDENTITY(1,1), 
+    name VARCHAR(100) NOT NULL,
+    contact_number VARCHAR(15),
+    email VARCHAR(100),
+    address TEXT
+);
+
+-- Users
+IF OBJECT_ID('users', 'U') IS NOT NULL DROP TABLE users;
+CREATE TABLE users (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    username VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role_id INT NOT NULL,
+    person_id INT NOT NULL,
+    FOREIGN KEY (role_id) REFERENCES roles(id),
+    FOREIGN KEY (person_id) REFERENCES persons(id),
+    CONSTRAINT unique_person_role UNIQUE (person_id, role_id)
+);
+
+-- Doctors
+IF OBJECT_ID('doctors', 'U') IS NOT NULL DROP TABLE doctors;
+CREATE TABLE doctors (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    person_id INT NOT NULL,
+    specialization VARCHAR(100),
+    FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
+);
+
+-- Insurance Policies
+IF OBJECT_ID('insurance_policies', 'U') IS NOT NULL DROP TABLE insurance_policies;
+CREATE TABLE insurance_policies (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    name VARCHAR(100) NOT NULL,
+    coverage_amount DECIMAL(10, 2) NOT NULL,
+    premium DECIMAL(10, 2) NOT NULL,
+    description VARCHAR(MAX)
+);
+
+-- Patients
+IF OBJECT_ID('patients', 'U') IS NOT NULL DROP TABLE patients;
+CREATE TABLE patients (
+    id INT PRIMARY KEY IDENTITY (1,1),
+    person_id INT NOT NULL,
+    policy_id INT NOT NULL,
+    medical_history TEXT,
+    date_of_birth DATE,
+    FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE,
+    FOREIGN KEY (policy_id) REFERENCES insurance_policies(id)
+);
+
+-- Appointments
+IF OBJECT_ID('appointments', 'U') IS NOT NULL DROP TABLE appointments;
+CREATE TABLE appointments (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    patient_id INT NOT NULL,
+    doctor_id INT NOT NULL,
+    time_slot VARCHAR(50) NOT NULL,
+    date DATE NOT NULL,
+    status VARCHAR(20) CHECK (status IN ('Pending', 'Approved', 'Rejected')) NOT NULL DEFAULT 'Pending',
+    FOREIGN KEY (patient_id) REFERENCES patients(id),
+    FOREIGN KEY (doctor_id) REFERENCES doctors(id),
+    created_at DATETIME DEFAULT GETDATE(),
+    updated_at DATETIME DEFAULT GETDATE()
+);
+
+-- Medical Records
+IF OBJECT_ID('medical_records', 'U') IS NOT NULL DROP TABLE medical_records;
+CREATE TABLE medical_records (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    patient_id INT NOT NULL,
+    appointment_id INT NULL,
+    diagnosis TEXT NOT NULL,
+    treatment TEXT NOT NULL,
+    notes TEXT,
+    created_date DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (patient_id) REFERENCES patients(id),
+    FOREIGN KEY (appointment_id) REFERENCES appointments(id)
+);
+
+-- Schedules
+IF OBJECT_ID('schedules', 'U') IS NOT NULL DROP TABLE schedules;
+CREATE TABLE schedules (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    doctor_id INT NOT NULL,
+    time_slot VARCHAR(50) NOT NULL,
+    date DATE Not NULL,
+    status VARCHAR(20) CHECK (status IN ('Available', 'TBD', 'Unavailable','Booked')) NOT NULL DEFAULT 'Available',
+    FOREIGN KEY (doctor_id) REFERENCES doctors(id)
+);
+
+-- Patient History
+IF OBJECT_ID('patient_history', 'U') IS NOT NULL DROP TABLE patient_history;
+CREATE TABLE patient_history (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    patient_id INT NOT NULL,
+    date DATE NOT NULL,
+    diagnosis VARCHAR(255) NOT NULL,
+    treatment TEXT NOT NULL,
+    FOREIGN KEY (patient_id) REFERENCES patients(id)
+);
+
+-- Lab Tests
+IF OBJECT_ID('lab_tests', 'U') IS NOT NULL DROP TABLE lab_tests;
+CREATE TABLE lab_tests (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    cost DECIMAL(10, 2) NOT NULL
+);
+
+-- Test Requests
+IF OBJECT_ID('test_requests', 'U') IS NOT NULL DROP TABLE test_requests;
+CREATE TABLE test_requests (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    patient_id INT NOT NULL,
+    doctor_id INT,
+    lab_test_id INT NOT NULL,
+    request_date DATETIME DEFAULT GETDATE(),
+    manager_id INT,
+    technician_id INT,
+    status VARCHAR(50) DEFAULT 'Created', 
+    FOREIGN KEY (patient_id) REFERENCES patients(id),
+    FOREIGN KEY (doctor_id) REFERENCES doctors(id),
+    FOREIGN KEY (lab_test_id) REFERENCES lab_tests(id),
+    FOREIGN KEY (manager_id) REFERENCES users(id),
+    FOREIGN KEY (technician_id) REFERENCES users(id)
+);
+
+-- Lab Reports
+IF OBJECT_ID('lab_reports', 'U') IS NOT NULL DROP TABLE lab_reports;
+CREATE TABLE lab_reports (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    test_request_id INT NOT NULL,
+    lab_technician_id INT NOT NULL,
+    result TEXT NOT NULL,
+    generated_date DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (test_request_id) REFERENCES test_requests(id) ON DELETE CASCADE,
+    FOREIGN KEY (lab_technician_id) REFERENCES users(id)
+);
+
+-- Insurance Claims
+IF OBJECT_ID('insurance_claims', 'U') IS NOT NULL DROP TABLE insurance_claims;
+CREATE TABLE insurance_claims (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    patient_id INT NOT NULL,
+    policy_id INT NOT NULL,
+    claim_date DATETIME DEFAULT GETDATE(),
+    claim_amount DECIMAL(10, 2) NOT NULL,
+    status VARCHAR(20) DEFAULT 'Pending',
+    remarks TEXT,
+    assigned_manager_id INT,
+    FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+    FOREIGN KEY (policy_id) REFERENCES insurance_policies(id),
+    FOREIGN KEY (assigned_manager_id) REFERENCES users(id)
+);
+
+-- Medicines
+IF OBJECT_ID('medicines', 'U') IS NOT NULL DROP TABLE medicines;
+CREATE TABLE medicines (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL,
+    quantity_in_stock INT NOT NULL,
+    reorder_level INT NOT NULL,
+    supplier VARCHAR(100),
+    expiry_date DATE
+);
+
+IF OBJECT_ID('prescriptions', 'U') IS NOT NULL DROP TABLE pharmacy_prescriptions;
+CREATE TABLE prescriptions (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    patient_id INT NOT NULL,
+    doctor_id INT NOT NULL,
+    pharmacy_manager_id INT NOT NULL,
+    date_requested DATE NOT NULL,
+    status VARCHAR(100) DEFAULT 'Pending',
+    payment_status VARCHAR(100) DEFAULT 'Pending',
+    FOREIGN KEY (patient_id) REFERENCES patients(id),
+    FOREIGN KEY (doctor_id) REFERENCES doctors(id),
+    FOREIGN KEY (pharmacy_manager_id) REFERENCES users(id)
+);
+
+IF OBJECT_ID('prescription_assignments', 'U') IS NOT NULL DROP TABLE prescription_assignments;
+CREATE TABLE prescription_assignments (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    prescription_id INT NOT NULL,
+    pharmacist_id INT NOT NULL,
+    assigned_date DATE NOT NULL,
+    date_fulfilled DATE,
+    status VARCHAR(20) DEFAULT 'Assigned',
+    FOREIGN KEY (prescription_id) REFERENCES prescriptions(id),
+    FOREIGN KEY (pharmacist_id) REFERENCES users(id)
+);
+
+IF OBJECT_ID('prescription_medicines', 'U') IS NOT NULL DROP TABLE prescription_medicines;
+CREATE TABLE prescription_medicines (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    prescription_id INT NOT NULL,
+    medicine_id INT NOT NULL,
+    quantity INT NOT NULL,
+    FOREIGN KEY (prescription_id) REFERENCES prescriptions(id),
+    FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+);
+
+IF OBJECT_ID('medicine_orders', 'U') IS NOT NULL DROP TABLE medicine_orders;
+CREATE TABLE medicine_orders (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    medicine_id INT NOT NULL,
+    quantity INT NOT NULL,
+    user_id INT NOT NULL,
+    order_date DATE NOT NULL,
+    status VARCHAR(20) DEFAULT 'Pending',
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+);
+
+IF OBJECT_ID('PrescriptionBilling', 'U') IS NOT NULL DROP TABLE PrescriptionBilling;
+CREATE TABLE PrescriptionBilling (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    prescription_id INT NOT NULL,
+    medicine_id INT NOT NULL,
+    quantity INT NOT NULL,
+    price DECIMAL(10, 2) NOT NULL,
+    total_amount DECIMAL(10, 2),
+    bill_date DATE NOT NULL,
+    FOREIGN KEY (prescription_id) REFERENCES prescriptions(id),
+    FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+);
+
+-- Chat Sessions and Messages
+IF OBJECT_ID('chat_sessions', 'U') IS NOT NULL DROP TABLE chat_sessions;
+CREATE TABLE chat_sessions (
+    session_id INT IDENTITY(1,1) PRIMARY KEY,
+    patient_id INT NOT NULL,
+    agent_id INT NOT NULL,
+    status VARCHAR(20) CHECK (status IN ('Open', 'Closed')) DEFAULT 'Open',
+    created_at DATETIME DEFAULT GETDATE(),
+    closed_at DATETIME,
+    FOREIGN KEY (patient_id) REFERENCES patients(id),
+    FOREIGN KEY (agent_id) REFERENCES users(id)
+);
+
+IF OBJECT_ID('chat_messages', 'U') IS NOT NULL DROP TABLE chat_messages;
+CREATE TABLE chat_messages (
+    message_id INT IDENTITY(1,1) PRIMARY KEY,
+    session_id INT NOT NULL,
+    sender_id INT NOT NULL,
+    message_text TEXT NOT NULL,
+    timestamp DATETIME DEFAULT GETDATE(),
+    message_type VARCHAR(20) CHECK (message_type IN ('Text', 'Image', 'File')) DEFAULT 'Text',
+    FOREIGN KEY (session_id) REFERENCES chat_sessions(session_id),
+    FOREIGN KEY (sender_id) REFERENCES users(id)
+);
+
+IF OBJECT_ID('predefined_questions', 'U') IS NOT NULL DROP TABLE predefined_questions;
+CREATE TABLE predefined_questions (
+    question_id INT IDENTITY(1,1) PRIMARY KEY,
+    question_text VARCHAR(255) NOT NULL,
+    response_text TEXT NOT NULL
+);
+
+---------------------------------------------------------------
+-- Insert Data
+---------------------------------------------------------------
+
+-- Insert Roles
+INSERT INTO roles (role_name) VALUES 
+('System Admin'),
+('Enterprise Admin'),
+('Doctor'),
+('Patient'),
+('Lab Manager'),
+('Lab Technician'),
+('Pharmacy Manager'),
+('Pharmacist'),
+('Insurance Manager'),
+('Billing Manager');
+
+-- Insert Persons
+INSERT INTO persons (name, contact_number, email, address) VALUES
+('John Smith', '1234567890', 'systemadmin@example.com', '123 Admin St.'),
+('Jane Doe', '2345678901', 'enterpriseadmin@example.com', '456 Enterprise Rd.'),
+('Dr. Emily Johnson', '3456789012', 'doctor@example.com', '789 Doctor Ave.'),
+('Michael Brown', '4567890123', 'patient@example.com', '101 Patient Blvd.'),
+('Lisa White', '5678901234', 'labmanager@example.com', '202 Lab St.'),
+('David Green', '6789012345', 'labtech@example.com', '303 Lab Blvd.'),
+('Chris Blue', '7890123456', 'pharmacymanager@example.com', '404 Pharmacy Ave.'),
+('Sarah Black', '8901234567', 'pharmacist@example.com', '505 Pharmacy St.'),
+('Angela Gray', '9012345678', 'insurancemanager@example.com', '606 Insurance Rd.'),
+('Robert Red', '0123456789', 'billingmanager@example.com', '707 Billing Blvd.');
+
+-- Insert Users
+INSERT INTO users (username, password, role_id, person_id) VALUES 
+('sysadmin1', 'password123', (SELECT id FROM roles WHERE role_name='System Admin'), 1),
+('entadmin1', 'password123', (SELECT id FROM roles WHERE role_name='Enterprise Admin'), 2),
+('doctor1', 'password123', (SELECT id FROM roles WHERE role_name='Doctor'), 3),
+('patient1', 'password123', (SELECT id FROM roles WHERE role_name='Patient'), 4),
+('labmanager1', 'password123', (SELECT id FROM roles WHERE role_name='Lab Manager'), 5),
+('labtech1', 'password123', (SELECT id FROM roles WHERE role_name='Lab Technician'), 6),
+('pharmamanager1', 'password123', (SELECT id FROM roles WHERE role_name='Pharmacy Manager'), 7),
+('pharmacist1', 'password123', (SELECT id FROM roles WHERE role_name='Pharmacist'), 8),
+('insurancemanager1', 'password123', (SELECT id FROM roles WHERE role_name='Insurance Manager'), 9),
+('billingmanager1', 'password123', (SELECT id FROM roles WHERE role_name='Billing Manager'), 10);
+
+-- Insert Doctor
+INSERT INTO doctors (person_id, specialization) 
+VALUES ((SELECT id FROM persons WHERE name = 'Dr. Emily Johnson'), 'Cardiology');
+
+-- Insert Insurance Policies
+INSERT INTO insurance_policies (name, coverage_amount, premium, description) VALUES
+('Basic Health Plan', 5000.00, 200.00, 'Covers basic outpatient expenses'),
+('Comprehensive Plan', 10000.00, 500.00, 'Includes advanced hospitalization and diagnostics'),
+('Family Plan', 20000.00, 800.00, 'Covers entire family, including dependents');
+
+-- Michael Brown (Basic Health Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history)
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Michael Brown'),
+    (SELECT id FROM insurance_policies WHERE name='Basic Health Plan'),
+    '1990-01-01',
+    'Diabetes'
+);
+
+-- Insert persons for each patient
+INSERT INTO persons (name, contact_number, email, address) VALUES
+('Amit Sharma', '9876543210', 'amit.sharma@example.com', 'Delhi, India'),
+('Priya Singh', '8765432109', 'priya.singh@example.com', 'Mumbai, India'),
+('Rohan Verma', '7654321098', 'rohan.verma@example.com', 'Bangalore, India'),
+('Kavita Iyer', '6543210987', 'kavita.iyer@example.com', 'Chennai, India'),
+('Anil Menon', '5432109876', 'anil.menon@example.com', 'Kochi, India'),
+('Liam Brown', '0412345678', 'liam.brown@example.com', 'Sydney, Australia'),
+('Olivia Wilson', '0409876543', 'olivia.wilson@example.com', 'Melbourne, Australia'),
+('Ethan Taylor', '0432123456', 'ethan.taylor@example.com', 'Brisbane, Australia'),
+('Charlotte Davis', '0421345678', 'charlotte.davis@example.com', 'Perth, Australia'),
+('Mason White', '0410987654', 'mason.white@example.com', 'Adelaide, Australia');
+
+-- Amit Sharma (Basic Health Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history) 
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Amit Sharma'),
+    (SELECT id FROM insurance_policies WHERE name='Basic Health Plan'),
+    '1985-05-12',
+    'Hypertension'
+);
+
+-- Priya Singh (Comprehensive Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history) 
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Priya Singh'),
+    (SELECT id FROM insurance_policies WHERE name='Comprehensive Plan'),
+    '1990-07-22',
+    'Asthma'
+);
+
+-- Rohan Verma (Family Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history) 
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Rohan Verma'),
+    (SELECT id FROM insurance_policies WHERE name='Family Plan'),
+    '1988-11-15',
+    'Diabetes'
+);
+
+-- Kavita Iyer (Basic Health Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history) 
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Kavita Iyer'),
+    (SELECT id FROM insurance_policies WHERE name='Basic Health Plan'),
+    '1992-03-30',
+    'Thyroid Disorder'
+);
+
+-- Anil Menon (Comprehensive Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history) 
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Anil Menon'),
+    (SELECT id FROM insurance_policies WHERE name='Comprehensive Plan'),
+    '1987-09-05',
+    'Chronic Migraine'
+);
+
+-- Liam Brown (Basic Health Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history) 
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Liam Brown'),
+    (SELECT id FROM insurance_policies WHERE name='Basic Health Plan'),
+    '1980-06-10',
+    'Cardiac Issues'
+);
+
+-- Olivia Wilson (Comprehensive Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history) 
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Olivia Wilson'),
+    (SELECT id FROM insurance_policies WHERE name='Comprehensive Plan'),
+    '1993-08-25',
+    'Arthritis'
+);
+
+-- Ethan Taylor (Family Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history) 
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Ethan Taylor'),
+    (SELECT id FROM insurance_policies WHERE name='Family Plan'),
+    '1989-01-18',
+    'Kidney Stones'
+);
+
+-- Charlotte Davis (Basic Health Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history) 
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Charlotte Davis'),
+    (SELECT id FROM insurance_policies WHERE name='Basic Health Plan'),
+    '1991-12-05',
+    'Back Pain'
+);
+
+-- Mason White (Comprehensive Plan)
+INSERT INTO patients (person_id, policy_id, date_of_birth, medical_history) 
+VALUES (
+    (SELECT id FROM persons WHERE name = 'Mason White'),
+    (SELECT id FROM insurance_policies WHERE name='Comprehensive Plan'),
+    '1984-04-20',
+    'Allergies'
+);
+
+
+INSERT INTO medical_records (patient_id, appointment_id, diagnosis, treatment, notes) 
+VALUES (
+    (SELECT p.id 
+     FROM patients p
+     JOIN persons ps ON p.person_id = ps.id
+     WHERE ps.name = 'Michael Brown'),
+    (SELECT a.id 
+     FROM appointments a
+     JOIN patients pt ON a.patient_id = pt.id
+     JOIN persons pr ON pt.person_id = pr.id
+     WHERE pr.name='Michael Brown' AND a.time_slot='9:00 AM'), 
+    'High Blood Pressure', 
+    'Prescribed ACE inhibitors', 
+    'Follow-up in one month'
+);
+
+-- Insert Patient History for Michael Brown
+INSERT INTO patient_history (patient_id, date, diagnosis, treatment) 
+VALUES (
+    (SELECT p.id 
+     FROM patients p
+     JOIN persons ps ON p.person_id = ps.id
+     WHERE ps.name='Michael Brown'), 
+    '2023-12-01', 
+    'Hypertension', 
+    'Lifestyle changes and medication'
+);
+
+
+
+-- Example for Amit Sharma if needed:
+INSERT INTO medical_records (patient_id, appointment_id, diagnosis, treatment, notes)
+VALUES (
+    (SELECT p.id FROM patients p JOIN persons ps ON p.person_id = ps.id WHERE ps.name='Amit Sharma'),
+    (SELECT a.id FROM appointments a JOIN patients pt ON a.patient_id=pt.id JOIN persons pr ON pt.person_id=pr.id WHERE pr.name='Amit Sharma' AND a.time_slot='10:00 AM'),
+    'Hypertension',
+    'Prescribed Beta-Blockers',
+    'Regular check-up advised'
+);
+
+-- Example for test_requests that previously referenced patient by insurance_number:
+
+INSERT INTO lab_tests (name, description, cost)
+VALUES
+('Complete Blood Count', 'Basic health screening', 50.00),
+('X-Ray', 'Imaging for bones and soft tissues', 100.00),
+('MRI', 'Advanced imaging for internal structures', 500.00),
+('Liver Function Test', 'Measures liver enzymes and bilirubin levels', 150.00),
+('Kidney Function Test', 'Checks creatinine and urea levels', 200.00),
+('Thyroid Profile', 'Assesses T3, T4, and TSH levels', 100.00),
+('Vitamin D Test', 'Evaluates Vitamin D levels for bone health', 80.00),
+('ECG', 'Records the electrical activity of the heart', 120.00),
+('CT Scan', 'Detailed imaging for internal organs', 400.00),
+('Blood Sugar Test', 'Measures glucose levels in the blood', 60.00),
+('Lipid Profile', 'Evaluates cholesterol and triglycerides', 90.00),
+('Urine Analysis', 'Checks for infection and kidney function indicators', 50.00),
+('Allergy Panel', 'Tests for common allergens', 250.00),
+('Iron Studies', 'Measures iron and ferritin levels', 70.00),
+('Hormone Panel', 'Assesses various hormone levels', 300.00);
+
+INSERT INTO test_requests (patient_id, doctor_id, lab_test_id, manager_id, status)
+VALUES (
+    (SELECT p.id FROM patients p JOIN persons ps ON p.person_id=ps.id WHERE ps.name='Michael Brown'),
+    (SELECT id FROM doctors WHERE specialization='Cardiology'),
+    (SELECT id FROM lab_tests WHERE name='Complete Blood Count'),
+    (SELECT id FROM users WHERE username='labmanager1'),
+    'Created'
+);
+
+-- Insert test_requests
+INSERT INTO test_requests (patient_id, doctor_id, lab_test_id, manager_id, status) VALUES
+(1, 1, 1, 5, 'Created'),
+(1, 1, 2, 5, 'Created');
+
+-- Insert doctors (if needed again)
+INSERT INTO doctors (person_id, specialization)
+VALUES ((SELECT id FROM persons WHERE name = 'Dr. Emily Johnson'), 'Cardiology');
+
+-- Insert Insurance Claims
+INSERT INTO insurance_claims (patient_id, policy_id, claim_amount, status, assigned_manager_id) VALUES
+(1, 1, 300.00, 'Pending', 9),
+(1, 2, 800.00, 'Approved', 9);
+
+-- Update test_requests technician_id
+UPDATE test_requests
+SET technician_id = (SELECT id FROM users WHERE username = 'labtech1')
+WHERE technician_id IS NULL OR technician_id NOT IN 
+(SELECT id FROM users WHERE role_id = (SELECT id FROM roles WHERE role_name = 'Lab Technician'));
+
+-- Insert multiple test_requests with different statuses
+INSERT INTO test_requests (patient_id, doctor_id, lab_test_id, manager_id, technician_id, status)
+VALUES 
+(1, 1, 1, 5, 6, 'Assigned'),
+(1, 1, 2, 5, 6, 'Created'),
+(1, 1, 1, 5, 6, 'Created');
+
+INSERT INTO test_requests (patient_id, doctor_id, lab_test_id, request_date, manager_id, technician_id, status) VALUES
+(1, 2, 1, GETDATE(), 3, 4, 'Processed'),
+(1, 2, 2, GETDATE(), 3, 4, 'Completed');
+INSERT INTO lab_reports (test_request_id, lab_technician_id, result, generated_date) VALUES
+(2, 4, 'Positive for Vitamin D deficiency', GETDATE()),
+(4, 4, 'Normal Cholesterol Levels', GETDATE());
+
+-- Insert medicines
+INSERT INTO medicines (name, description, price, quantity_in_stock, reorder_level, supplier, expiry_date)
+VALUES 
+('Paracetamol', 'Used for pain relief and fever reduction', 2.50, 100, 20, 'HealthCare Pharma', '2025-06-15'),
+('Amoxicillin', 'Antibiotic used to treat bacterial infections', 8.75, 50, 10, 'MediSupply Ltd', '2024-12-30'),
+('Ibuprofen', 'Nonsteroidal anti-inflammatory drug (NSAID) for pain relief', 3.25, 200, 30, 'Wellness Pharmaceuticals', '2025-03-10'),
+('Cetirizine', 'Antihistamine used for allergy relief', 1.50, 150, 25, 'Allergy Relief Inc.', '2026-01-20'),
+('Metformin', 'Used for the management of type 2 diabetes', 5.00, 75, 15, 'DiabetesCare Supplies', '2025-08-01'),
+('Aspirin', 'Used for pain relief, fever reduction, and anti-inflammatory purposes', 2.00, 180, 40, 'PainRelief Corp.', '2024-11-05'),
+('Salbutamol Inhaler', 'Used for asthma and other respiratory conditions', 15.00, 60, 12, 'BreatheEasy Medical', '2025-04-22'),
+('Omeprazole', 'Used to treat acid reflux and ulcers', 6.50, 90, 20, 'Digestive Health Co.', '2024-10-15'),
+('Losartan', 'Used to treat high blood pressure and heart failure', 10.25, 70, 15, 'HeartHealth Meds', '2026-02-11'),
+('Cough Syrup', 'Used for relieving cough and throat irritation', 4.75, 120, 30, 'CoughCare Solutions', '2025-12-25');
+
+-- Insert Sample Chat Sessions
+INSERT INTO chat_sessions (patient_id, agent_id) 
+VALUES 
+(1, 2),
+(3, 4),
+(4, 2),
+(5, 3);
+
+-- Insert Sample Chat Messages
+INSERT INTO chat_messages (session_id, sender_id, message_text, message_type)
+VALUES 
+(1, 1, 'Hello, I need help with my appointment.', 'Text'),
+(1, 2, 'Sure, I can help you. What seems to be the issue?', 'Text'),
+(2, 2, 'Can you assist with the lab test results?', 'Text'),
+(2, 3, 'Absolutely! Please hold for a moment.', 'Text'),
+(3, 3, 'I need information on how to book an appointment.', 'Text'),
+(3, 4, 'I will guide you through it. Please wait a moment.', 'Text'),
+(4, 1, 'I am having trouble accessing my medical records.', 'Text'),
+(4, 2, 'Let me check that for you, one moment please.', 'Text');
+
+
+-- Insert predefined_questions
+INSERT INTO predefined_questions (question_text, response_text)
+VALUES 
+('How do I book an appointment?', 'To book an appointment, please visit the "Appointments" section of your dashboard and select a suitable time slot.'),
+('How can I check my test results?', 'You can check your test results in the "Lab Tests" section.'),
+('How do I contact customer support?', 'You can contact customer support via email at support@example.com or by calling our helpline at 123-456-7890.'),
+('What is my medical history?', 'Your medical history includes all previous diagnoses, treatments, and lab test results. You can view it in the "Medical Records" section.'),
+('How do I get a prescription?', 'You can receive a prescription after a consultation with one of our doctors. Please visit the "Appointments" section to book a consultation.'),
+('How do I update my contact information?', 'To update your contact details, please visit the "Profile" section and make the necessary changes.');
+
+
+INSERT INTO prescriptions (patient_id, doctor_id, pharmacy_manager_id, date_requested, status, payment_status)
+VALUES 
+(
+    (SELECT TOP 1 p.id FROM patients p 
+     JOIN persons ps ON p.person_id = ps.id
+     WHERE ps.name = 'Michael Brown'), 
+    (SELECT TOP 1 d.id FROM doctors d
+     JOIN persons pr ON d.person_id = pr.id
+     WHERE d.specialization = 'Cardiology'), 
+    (SELECT TOP 1 u.id FROM users u
+     JOIN roles r ON u.role_id = r.id
+     WHERE u.username = 'pharmamanager1'),
+    '2024-01-10',
+    'Pending',
+    'Pending'
+),
+(
+    (SELECT TOP 1 p.id FROM patients p
+     JOIN persons ps ON p.person_id = ps.id
+     WHERE ps.name = 'Amit Sharma'), 
+    (SELECT TOP 1 d.id FROM doctors d 
+     WHERE specialization = 'Cardiology'), 
+    (SELECT TOP 1 u.id FROM users u
+     JOIN roles r ON u.role_id = r.id
+     WHERE u.username = 'pharmamanager1'),
+    '2024-01-15',
+    'Pending',
+    'Pending'
+);
+
+
+
+INSERT INTO prescription_assignments (prescription_id, pharmacist_id, assigned_date, status)
+VALUES
+(
+    (SELECT TOP 1 id FROM prescriptions ORDER BY id DESC), 
+    (SELECT TOP 1 u.id FROM users u
+     JOIN roles r ON u.role_id = r.id
+     WHERE u.username = 'pharmacist1'),
+    '2024-01-11',
+    'Assigned'
+),
+(
+    (SELECT id FROM prescriptions WHERE date_requested='2024-01-15'), 
+    (SELECT TOP 1 u.id FROM users u
+     JOIN roles r ON u.role_id = r.id
+     WHERE u.username = 'pharmacist1'),
+    '2024-01-16',
+    'Assigned'
+);
+
+
+INSERT INTO prescription_medicines (prescription_id, medicine_id, quantity)
+VALUES
+(
+    (SELECT TOP 1 id FROM prescriptions WHERE date_requested='2024-01-10'),
+    (SELECT TOP 1 id FROM medicines WHERE name='Paracetamol'),
+    30
+),
+(
+    (SELECT TOP 1 id FROM prescriptions WHERE date_requested='2024-01-10'),
+    (SELECT TOP 1 id FROM medicines WHERE name='Metformin'),
+    60
+),
+(
+    (SELECT TOP 1 id FROM prescriptions WHERE date_requested='2024-01-15'),
+    (SELECT TOP 1 id FROM medicines WHERE name='Aspirin'),
+    20
+);
+
+
+INSERT INTO medicine_orders (medicine_id, quantity, user_id, order_date, status)
+VALUES
+(
+    (SELECT TOP 1 id FROM medicines WHERE name='Paracetamol'),
+    200,
+    (SELECT id FROM users WHERE username='pharmamanager1'),
+    '2024-01-12',
+    'Pending'
+),
+(
+    (SELECT TOP 1 id FROM medicines WHERE name='Ibuprofen'),
+    100,
+    (SELECT id FROM users WHERE username='pharmamanager1'),
+    '2024-01-12',
+    'Pending'
+);
+
+
+-- Insert schedules for doctor_id = 3
+INSERT INTO schedules (doctor_id, date, time_slot, status)
+VALUES 
+(3, '2024-12-10', '09:00 AM', 'Available'),
+(3, '2024-12-11', '10:00 AM', 'Available'),
+(3, '2024-12-12', '11:00 AM', 'Unavailable');
+
+INSERT INTO users (username, password, role_id, person_id) VALUES
+('amit.sharma@example.com', 'password123', (SELECT id FROM roles WHERE role_name='Patient'), 11)
+  
+INSERT INTO persons (name, contact_number, email, address) VALUES
+('pharmamanager2', '7890123478', 'pharmacymanager1@example.com', '404 Pharmacy Ave.'),
+('pharmacist2', '890123437', 'pharmacist@example2.com', '505 Pharmacy St.')
+---------------------------------------------------------------
+-- Script Complete
+---------------------------------------------------------------
