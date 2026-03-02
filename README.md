@@ -49,9 +49,3 @@ Refer to the project diagrams for more details:
 - **Login & Role-Based Access:** Secure login for different user roles ensures that each user has access only to the functionalities relevant to their responsibilities.
 - **Dashboard Navigation:** The main dashboard provides access to modules for patient registration, appointment scheduling, and report generation.
 - **Data Management:** Easily add, update, view, or delete records via an intuitive interface.
-
-## Contributing
-Contributions are welcome! If you wish to contribute:
-1. Fork the repository.
-2. Create a new branch for your feature or bug fix.
-3. Commit your changes and submit a pull request for review.
